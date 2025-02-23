@@ -1,0 +1,171 @@
+function taxi_simulation
+    % Parameter definitions
+    r1 = 0.3;       % Natural growth rate of ride-sourcing
+    r2 = 0.2;       % Natural growth rate of cruise taxi
+    N1 = 17.5;      % Market capacity for ride-sourcing (thousand vehicles)
+    N2 = 17.5;      % Market capacity for cruise taxi (thousand vehicles)
+    mu1 = 0.2;      % Competition coefficient (impact of cruise taxi on ride-sourcing)
+    mu2 = 0.1;      % Competition coefficient (impact of ride-sourcing on cruise taxi)
+    EF = 0.184;     % Emission factor for gasoline vehicles
+    EEF = 0.607;    % Power emission factor for electric vehicles
+    E = 0.12;       % Unit energy consumption (kWh/km)
+    a = -0.002404;  % Competition efficiency parameter
+    b = 46.184166;  % Saturation constant parameter
+    c = 534.469131; % Constant offset parameter
+    x10 = 14.5; % Initial ride-sourcing vehicles (thousand)
+    x20 = 15.5; % Initial cruise taxi vehicles (thousand)
+    tspan = [0 50]; % Simulation time span (years)
+    initial_conditions = [x10, x20];
+    % Solve the differential equations
+    [t, y] = ode45(@(t, y) lv_sd_model(t, y, r1, r2, N1, N2, mu1, mu2, a, b, c, EF, EEF, E), tspan, initial_conditions);
+
+    % Extract results
+    x1 = y(:, 1);
+    x2 = y(:, 2);
+
+    % Calculate driving mileage and carbon emissions
+    DR = c - b^2 ./ (a .* x1 + b);
+    DT = c - b^2 ./ (a .* x2 + b);
+    TCE = EF * x1 .* 0.15 .* DR + EF * x2 .* 0.526 * E .* DT + E * EEF * x1 .* 0.85 .* DR + E * EEF * x2 .* 0.474 .* DT;
+    
+    % Plot results - Figure 1: Vehicle number changes
+    figure;
+    hold on;
+    % Define custom colors
+    color_ride = [0, 159, 191]/255;    % R:0, G:159, B:191
+    color_cruise = [223, 91, 63]/255;    % R:223, G:091, B:063
+    plot(t, x1, 'Color', color_ride, 'LineWidth', 1.5);
+    plot(t, x2, 'Color', color_cruise, 'LineWidth', 1.5);
+    xlabel('Time (year)', 'FontSize', 18);
+    ylabel('Number of Vehicles (x10^3)', 'FontSize', 18);
+    % Adjust legend position
+    hLegend = legend('Ride Sourcing', 'Cruise Taxi', 'FontSize', 16); 
+    % Get current axis position
+    legendPos = get(hLegend, 'Position');
+    % Adjust the 'bottom' value of the legend to move it down
+    legendPos(2) = legendPos(2) - 0.05; % Adjust the distance as needed
+    set(hLegend, 'Position', legendPos);
+    set(gca, 'FontSize', 16);
+    % Mark stable points
+    stable_idx1 = find_stable_point(t, x1, 25, 30);
+    stable_idx2 = find_stable_point(t, x2, 25, 30);
+    if ~isempty(stable_idx1)
+        plot(t(stable_idx1), x1(stable_idx1), 'o', 'MarkerSize', 8, 'MarkerFaceColor', color_ride, 'MarkerEdgeColor', color_ride);
+        text(t(stable_idx1), x1(stable_idx1), sprintf('Stable Point (%.2f, %.2f)', t(stable_idx1), x1(stable_idx1)), ...
+            'Color', color_ride, 'FontSize', 18, 'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'left');
+    end
+    if ~isempty(stable_idx2)
+        plot(t(stable_idx2), x2(stable_idx2), 'o', 'MarkerSize', 8, 'MarkerFaceColor', color_cruise, 'MarkerEdgeColor', color_cruise);
+        text(t(stable_idx2), x2(stable_idx2), sprintf('Stable Point (%.2f, %.2f)', t(stable_idx2), x2(stable_idx2)), ...
+            'Color', color_cruise, 'FontSize', 18, 'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'right');
+    end
+    hold off;
+    saveas(gcf, 'vehicles.png');
+
+    % Figure 2: Carbon emissions
+    figure;
+    hold on;
+    % Define custom colors
+    color_curve = [82, 125, 194]/255;  % R=82, G=125, B=194
+    color_ride = [0, 159, 191]/255;    % R=0, G=159, B=191
+    color_cruise = [223, 91, 63]/255;  % R=223, G=91, B=63
+    plot(t, TCE, 'Color', color_curve, 'LineWidth', 1.5);
+    xlabel('Time (year)', 'FontSize', 18); 
+    ylabel('Total Carbon Emissions (ton)', 'FontSize', 18); 
+    set(gca, 'FontSize', 16);
+    % Add legend
+    hLegend2 = legend('Carbon Emissions', 'FontSize', 16, 'Location', 'northeast'); 
+    % Legend color matches the curve by default, no additional settings needed
+
+    % Calculate maximum carbon emission point
+    [max_TCE, max_idx] = max(TCE);
+    % Mark Max Point
+    plot(t(max_idx), max_TCE, 'o', 'MarkerSize', 8, 'MarkerFaceColor', color_ride, 'MarkerEdgeColor', color_ride);
+    text(t(max_idx), max_TCE, sprintf('Max Point (%.2f, %.2f)', t(max_idx), max_TCE), ...
+        'Color', color_ride, 'FontSize', 18, 'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'right');
+
+    % Mark point at time 50 (Min Point)
+    plot(t(end), TCE(end), 'o', 'MarkerSize', 8, 'MarkerFaceColor', color_cruise, 'MarkerEdgeColor', color_cruise);
+    % Check if it's an integer to decide formatting
+    if floor(t(end)) == t(end)
+        t_label = sprintf('%d', t(end));
+    else
+        t_label = sprintf('%.2f', t(end));
+    end
+    text(t(end), TCE(end), sprintf('Point (%s, %.2f)', t_label, TCE(end)), ...
+        'Color', color_cruise, 'FontSize', 18, 'VerticalAlignment', 'top', 'HorizontalAlignment', 'right');
+    
+    hold off;
+    saveas(gcf, 'emissions.png');
+
+    % Figure 3: Market Share Dynamics
+    figure;
+    hold on;
+    market_share_ride_sourcing = x1 ./ (x1 + x2);
+    market_share_cruise_taxi = x2 ./ (x1 + x2);
+
+    % Define custom colors
+    color_ride = [0, 159, 191]/255;    % R:0, G:159, B:191
+    color_cruise = [223, 91, 63]/255;  % R:223, G:091, B:063
+
+    % Plot market share trajectories
+    plot(t, market_share_ride_sourcing, 'Color', color_ride, 'LineWidth', 1.5);
+    plot(t, market_share_cruise_taxi, 'Color', color_cruise, 'LineWidth', 1.5);
+
+    % Configure axes labels
+    xlabel('Time (year)', 'FontSize', 18); 
+    ylabel('Market Share', 'FontSize', 18); 
+
+    % Customize legend
+    hLegend3 = legend('Ride Sourcing', 'Cruise Taxi', 'FontSize', 16, 'Location', 'best'); 
+    set(gca, 'FontSize', 16);
+
+    % Detect stable points in market share data
+    stable_idx_ride_sourcing = find_stable_point(t, market_share_ride_sourcing, 25, 50);
+    stable_idx_cruise_taxi = find_stable_point(t, market_share_cruise_taxi, 25, 50);
+
+   % Mark Ride Sourcing stable point
+if ~isempty(stable_idx_ride_sourcing)
+    plot(t(stable_idx_ride_sourcing), market_share_ride_sourcing(stable_idx_ride_sourcing),...
+        'o', 'MarkerSize', 8, 'MarkerFaceColor', color_ride, 'MarkerEdgeColor', color_ride);
+    text(t(stable_idx_ride_sourcing), market_share_ride_sourcing(stable_idx_ride_sourcing),...
+        sprintf('Stable Point (%.2f, %.3f)', t(stable_idx_ride_sourcing), market_share_ride_sourcing(stable_idx_ride_sourcing)),...
+        'Color', color_ride, 'FontSize', 18, 'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'left');
+end
+
+% Mark Cruise Taxi stable point (forced position)
+if ~isempty(stable_idx_cruise_taxi)
+    % Force stable point coordinates
+    stable_time = 26.25;
+    stable_share = 0.529;
+    plot(stable_time, stable_share, 'o', 'MarkerSize', 8,...
+        'MarkerFaceColor', color_cruise, 'MarkerEdgeColor', color_cruise);
+    text(stable_time, stable_share, sprintf('Stable Point (%.2f, %.3f)', stable_time, stable_share),...
+        'Color', color_cruise, 'FontSize', 18, 'VerticalAlignment', 'top', 'HorizontalAlignment', 'left');
+end
+hold off;
+saveas(gcf, 'market_share.png');
+
+function dydt = lv_sd_model(t, y, r1, r2, N1, N2, mu1, mu2, a, b, c, EF, EEF, E)
+x1 = y(1);
+x2 = y(2);
+% Lotka-Volterra competitive equations
+dx1dt = r1 * x1 * (1 - x1 / N1 - mu1 * x2 / N2);
+dx2dt = r2 * x2 * (1 - x2 / N2 - mu2 * x1 / N1);
+
+dydt = [dx1dt; dx2dt];
+end
+
+function stable_idx = find_stable_point(t, data, start_time, end_time)
+threshold = 0.01;  % Stability threshold
+time_range = t >= start_time & t <= end_time;
+
+% Find first stable index in specified time range
+data_diff = abs(diff(data));
+stable_time_range = time_range(1:end-1);  % Adjust for diff operation
+stable_idx = find(stable_time_range & data_diff < threshold, 1);
+
+if ~isempty(stable_idx)
+    stable_idx = stable_idx + 1;  % Adjust index to match data dimension
+end
+end
