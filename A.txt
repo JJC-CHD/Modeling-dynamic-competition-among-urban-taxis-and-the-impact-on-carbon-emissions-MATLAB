@@ -26,7 +26,6 @@ function taxi_simulation
     % Calculate driving mileage and carbon emissions
     DR = c - b^2 ./ (a .* x1 + b);
     DT = c - b^2 ./ (a .* x2 + b);
-    TCE = EF * x1 .* 0.15 .* DR + EF * x2 .* 0.526 * E .* DT + E * EEF * x1 .* 0.85 .* DR + E * EEF * x2 .* 0.474 .* DT;
     
     % Plot results - Figure 1: Vehicle number changes
     figure;
