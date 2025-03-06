@@ -144,27 +144,3 @@ if ~isempty(stable_idx_cruise_taxi)
 end
 hold off;
 saveas(gcf, 'market_share.png');
-
-function dydt = lv_sd_model(t, y, r1, r2, N1, N2, mu1, mu2, a, b, c, EF, EEF, E)
-x1 = y(1);
-x2 = y(2);
-% Lotka-Volterra competitive equations
-dx1dt = r1 * x1 * (1 - x1 / N1 - mu1 * x2 / N2);
-dx2dt = r2 * x2 * (1 - x2 / N2 - mu2 * x1 / N1);
-
-dydt = [dx1dt; dx2dt];
-end
-
-function stable_idx = find_stable_point(t, data, start_time, end_time)
-threshold = 0.01;  % Stability threshold
-time_range = t >= start_time & t <= end_time;
-
-% Find first stable index in specified time range
-data_diff = abs(diff(data));
-stable_time_range = time_range(1:end-1);  % Adjust for diff operation
-stable_idx = find(stable_time_range & data_diff < threshold, 1);
-
-if ~isempty(stable_idx)
-    stable_idx = stable_idx + 1;  % Adjust index to match data dimension
-end
-end
