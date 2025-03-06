@@ -36,8 +36,6 @@ function new_taxi_simulation
     % Calculate carbon emissions
     DR = c - b^2 ./ (a .* x1 + b);  % Ride-sourcing driving distance
     DT = c - b^2 ./ (a .* x2 + b);  % Cruise taxi driving distance
-    TCE = EF * x1 .* 0.15 .* DR + EF * x2 .* 0.526 * E .* DT + ...
-          E * EEF * x1 .* 0.85 .* DR + E * EEF * x2 .* 0.474 .* DT;
     
     % Calculate market share ratio
     market_share_ratio = x1 ./ x2;
@@ -108,10 +106,6 @@ function new_taxi_simulation
     saveas(gcf, 'market_share_evolution.png');
 end
 
-%% Helper Functions
-function dydt = lv_sd_model(t, y, r1, r2, N1, N2, mu1, mu2, a, b, c, EF, EEF, E)
-    % Lotka-Volterra competition model
-    x1 = y(1);
     x2 = y(2);
     dx1dt = r1 * x1 * (1 - x1/N1 - mu1*x2/N2);
     dx2dt = r2 * x2 * (1 - x2/N2 - mu2*x1/N1);
